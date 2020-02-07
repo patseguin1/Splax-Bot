@@ -3,7 +3,7 @@ from discord.ext.commands import Bot
 import asyncio
 import nest_asyncio
 
-TOKEN = 'Njc0NzE5Mjg4OTQ2NDU4NjM2.Xjyw_A.ON09G82V7SQGn_zsSVH2SjlMhTs'
+TOKEN = 'Njc0NzE5Mjg4OTQ2NDU4NjM2.Xjzz0A.sJjds-KaJfynQdczrQhFlXpkQO4'
 
 client = Bot(command_prefix="!")
 with open("bad_words.txt") as file:
@@ -117,7 +117,7 @@ async def tempban(ctx, member: discord.Member, duration="", reason=""):
     mod = discord.utils.get(ctx.guild.roles, id=381807012352229377)
 
     async def remove_ban(seconds):
-        asyncio.sleep(seconds)
+        await asyncio.sleep(seconds)
         await channel.send("You have been unbanned from " + str(ctx.guild) + ".")
         await member.unban()
 
@@ -167,20 +167,17 @@ async def tempban(ctx, member: discord.Member, duration="", reason=""):
 
 @client.command(pass_context=True)
 async def info(ctx):
-    await ctx.send("Hello! This is a simple bot made by Splax to help automate moderation.")
-    embed = discord.Embed(title="Commands", description="", color=0x00ff00)
-    embed.add_field(name="timeout (admin only)", value="Times out a user and sends them a DM with the reason; will auto"
-                                                       " release the user from timeout after the duration is up. "
-                                                       "You must use their discord name, not their nickname. "
-                                                       "Duration is in hours by default, days if appended by D."
+    await ctx.send("Splax Bot is a bot to help automate some moderation tasks. Written with the discord.py library.")
+    embed = discord.Embed(title="Commands", description="All commands require the user's discord name,"
+                                                        " not their nickname.", color=0x00ff00)
+    embed.add_field(name="timeout (admin only)", value="Times out a user and sends them a DM with the reason."
                                                        "\nSyntax: !timeout [user] [duration] [reason]", inline=False)
     embed.add_field(name="purge (admin only)", value="Searches through the last N messages in a channel to delete by a "
-                                                     "specified user. Requires their discord name, not their nickname. "
+                                                     "specified user."
                                                      "\nSyntax: !purge [user] [channel] [number]", inline=False)
     embed.add_field(name="kick (admin only)", value="Kicks a user and sends them a DM with the reason."
                                                     "\nSyntax: !kick [user] [reason]", inline=False)
     embed.add_field(name="tempban (admin only)", value="Temporarily bans a user and sends them a DM with the reason. "
-                                                       "Will auto unban the user after the duration is up. "
                                                        "Duration is in hours by default, days if appended by D."
                                                    "\nSyntax: !tempban [user] [duration] [reason]", inline=False)
     embed.add_field(name="info", value="Lists the commands offered by the bot"
@@ -188,5 +185,17 @@ async def info(ctx):
 
     await ctx.send(embed=embed)
 
+
+@client.event
+async def on_message(message):
+    message_content = message.content.strip().lower()
+    mod_channel = client.get_channel(644010198662643712)
+    if any(bad_word in message_content for bad_word in bad_words):
+        await mod_channel.send(f"{message.author.mention} "
+                                   "was caught saying a bad word in #" + str(message.channel) +
+                               ". Their message has been censored.")
+        await message.delete()
+        print("Deleted 1 message by {} in #{}".format(message.author, message.channel))
+    await client.process_commands(message)
 
 client.run(TOKEN)
