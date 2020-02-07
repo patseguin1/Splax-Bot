@@ -15,7 +15,7 @@ async def on_ready():
     print('-----')
 
 
-@client.command()
+@client.command(pass_context=True)
 async def test(ctx):
     await ctx.send("This is a test")
 
@@ -27,7 +27,7 @@ async def timeout(ctx, member: discord.Member, duration=1, reason=""):
     if admin or mod in ctx.author.roles:
         role_timeout = discord.utils.get(ctx.guild.roles, name="Timeout")
         role_jimmy = discord.utils.get(ctx.guild.roles, name="Jimmy")
-        await ctx.send("{0} has been timed out".format(member))
+        await ctx.send("{} has been timed out".format(member))
         await member.add_roles(role_timeout)
         await member.remove_roles(role_jimmy)
 
