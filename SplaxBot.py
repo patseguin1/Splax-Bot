@@ -2,8 +2,11 @@ import discord
 from discord.ext.commands import Bot
 import asyncio
 import nest_asyncio
+from dotenv import load_dotenv
+import os
 
-TOKEN = 'Njc0NzE5Mjg4OTQ2NDU4NjM2.Xjzz0A.sJjds-KaJfynQdczrQhFlXpkQO4'
+load_dotenv()
+token = os.getenv('DISCORD_TOKEN')
 
 client = Bot(command_prefix="!")
 with open("bad_words.txt") as file:
@@ -198,4 +201,4 @@ async def on_message(message):
         print("Deleted 1 message by {} in #{}".format(message.author, message.channel))
     await client.process_commands(message)
 
-client.run(TOKEN)
+client.run(token)
