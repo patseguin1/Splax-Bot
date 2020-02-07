@@ -1,10 +1,13 @@
 import discord
 from discord.ext.commands import Bot
-import time
+import asyncio
+import nest_asyncio
 
-TOKEN = 'Njc0NzE5Mjg4OTQ2NDU4NjM2.XjssBw.HAXlgSKTULqfnPfyocCbLlPNNpA'
+TOKEN = 'Njc0NzE5Mjg4OTQ2NDU4NjM2.Xjyw_A.ON09G82V7SQGn_zsSVH2SjlMhTs'
 
 client = Bot(command_prefix="!")
+with open("bad_words.txt") as file:
+    bad_words = [bad_word.strip().lower() for bad_word in file.readlines()]
 
 
 @client.event
@@ -26,46 +29,54 @@ async def timeout(ctx, member: discord.Member, duration="", reason=""):
     mod = discord.utils.get(ctx.guild.roles, id=381807012352229377)
     role_timeout = discord.utils.get(ctx.guild.roles, name="Timeout")
     role_jimmy = discord.utils.get(ctx.guild.roles, name="Jimmy")
+
+    async def remove_timeout(seconds):
+        await asyncio.sleep(seconds)
+        await member.add_roles(role_jimmy)
+        await member.remove_roles(role_timeout)
+
     if admin or mod in ctx.author.roles:
         channel = await member.create_dm()
+        await member.add_roles(role_timeout)
+        await member.remove_roles(role_jimmy)
         if duration[-1] == "D":  # Checking for the days suffix
             duration = duration[:-1]
             timeout_duration = int(duration) * 86400
-            await member.add_roles(role_timeout)
-            await member.remove_roles(role_jimmy)
 
-            if int(duration) == 1:  # Formatting for singular case
+            if int(duration) == 1:  # Send a message to the user and the channel, singular case
                 await ctx.send("{} timed out {} for reason: {}. "
                                "\nLength of timeout: {} day".format(ctx.author, str(member), reason, duration))
                 message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of timeout: " + duration + " day"
                 await channel.send(message)
-            else:
+            else:  # Send a message to the user and the channel, plural case
                 await ctx.send("{} timed out {} for reason: {}. "
                                "\nLength of timeout: {} days".format(ctx.author, str(member), reason, duration))
                 message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of timeout: " + duration + " days"
                 await channel.send(message)
-            time.sleep(timeout_duration)
 
-        else: # Defaults to hours
+            await remove_timeout(timeout_duration)
+            nest_asyncio.apply()
+
+        else:  # Defaults to hours
             timeout_duration = int(duration)*3600
-            if int(duration) == 1: # Formatting for singular case
+            if int(duration) == 1:  # Sends a message to the user and the channel, singular case
                 await ctx.send("{} timed out {} for reason: {}. "
                                "\nLength of timeout: {} hour".format(ctx.author, str(member), reason, duration))
                 message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of timeout: " + duration + " hour"
                 await channel.send(message)
-            else:
+            else:  # Sends a message to the user and the channel, plural case
                 await ctx.send("{} timed out {} for reason: {}. "
                                "\nLength of timeout: {} hours".format(ctx.author, str(member), reason, duration))
                 message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of timeout: " + duration + " hours"
                 await channel.send(message)
-            time.sleep(timeout_duration)
 
-        await member.add_roles(role_jimmy)
-        await member.remove_roles(role_timeout)
+            await remove_timeout(timeout_duration)
+            nest_asyncio.apply()
+
         message = "Your timeout from " + str(ctx.guild) + " has been removed"
         await channel.send(message)
     else:
@@ -104,53 +115,59 @@ async def kick(ctx, member: discord.Member, reason=""):
 async def tempban(ctx, member: discord.Member, duration="", reason=""):
     admin = discord.utils.get(ctx.guild.roles, id=491335846335610891)
     mod = discord.utils.get(ctx.guild.roles, id=381807012352229377)
+
+    async def remove_ban(seconds):
+        asyncio.sleep(seconds)
+        await channel.send("You have been unbanned from " + str(ctx.guild) + ".")
+        await member.unban()
+
     if admin or mod in ctx.author.roles:
         channel = await member.create_dm()
         if duration[-1] == "D": # Checking for the days suffix
             duration = duration[:-1]
             ban_duration = int(duration)*86400
 
-            if int(duration) == 1: # Formatting for singular case
+            if int(duration) == 1:  # Send a message to the user and the channel, singular case
                 await ctx.send("{} banned {} for reason: {}. "
                                "\nLength of ban: {} day".format(ctx.author, str(member), reason, duration))
                 message = "You have been banned from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of ban: " + duration + " day"
                 await channel.send(message)
-            else:
+            else:  # Send a message to the user and the channel, plural case
                 await ctx.send("{} banned {} for reason: {}. "
                                "\nLength of ban: {} days".format(ctx.author, str(member), reason, duration))
                 message = "You have been banned from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of ban: " + duration + " days"
                 await channel.send(message)
             await member.ban(reason=reason, delete_message_days=0)
-            time.sleep(ban_duration)
+            await remove_ban(ban_duration)
+            nest_asyncio.apply()
 
-        else: # Defaults to hours
+        else:  # Defaults to hours
             ban_duration = int(duration)*3600
-            if int(duration) == 1: # Formatting for singular case
+            if int(duration) == 1:  # Send a message to the user and the channel, singular case
                 await ctx.send("{} banned {} for reason: {}. "
                                "\nLength of ban: {} hour".format(ctx.author, str(member), reason, duration))
                 message = "You have been banned from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of ban: " + duration + " hour"
                 await channel.send(message)
-            else:
+            else:  # Send a message to the user and the channel, plural case
                 await ctx.send("{} banned {} for reason: {}. "
                                "\nLength of ban: {} hours".format(ctx.author, str(member), reason, duration))
                 message = "You have been banned from " + str(ctx.guild) + ". Reason: " + reason \
                           + "\nLength of ban: " + duration + " hours"
                 await channel.send(message)
             await member.ban(reason=reason, delete_message_days=0)
-            time.sleep(ban_duration)
+            await remove_ban(ban_duration)
+            nest_asyncio.apply()
 
-        await channel.send("You have been unbanned from " + str(ctx.guild) + ".")
-        await member.unban()
     else:
         await ctx.send("Error: The ban command is for admins only.")
 
 
 @client.command(pass_context=True)
 async def info(ctx):
-    await ctx.send("Hello! This is a simple bot made by Splax to help with moderation.")
+    await ctx.send("Hello! This is a simple bot made by Splax to help automate moderation.")
     embed = discord.Embed(title="Commands", description="", color=0x00ff00)
     embed.add_field(name="timeout (admin only)", value="Times out a user and sends them a DM with the reason; will auto"
                                                        " release the user from timeout after the duration is up. "
