@@ -27,6 +27,11 @@ async def test(ctx):
 
 
 @client.command(pass_context=True)
+async def gazebo(ctx):
+    await ctx.send("Tomlough is best gazebo admin")
+
+
+@client.command(pass_context=True)
 async def timeout(ctx, member: discord.Member, duration="", reason=""):
     admin = discord.utils.get(ctx.guild.roles, id=491335846335610891)
     mod = discord.utils.get(ctx.guild.roles, id=381807012352229377)
@@ -90,12 +95,15 @@ async def timeout(ctx, member: discord.Member, duration="", reason=""):
 async def purge(ctx, member: discord.Member, channel: discord.TextChannel, number=1):
     admin = discord.utils.get(ctx.guild.roles, id=491335846335610891)
     mod = discord.utils.get(ctx.guild.roles, id=381807012352229377)
+    deleted = 0
     if admin or mod in ctx.author.roles:
-        def by_member(message):
-            return message.author == member
-
-        deleted = await channel.purge(limit=number, check=by_member)
-        await ctx.channel.send("Deleted {} messages by {}".format(len(deleted), member))
+        async for message in channel.history(limit=1000):
+            if message.author == member:
+                await message.delete()
+                deleted += 1
+            if deleted >= number:
+                break
+        await ctx.channel.send("Purged {} messages by {} in {}".format(str(number), member, channel))
     else:
         await ctx.send("Error: The purge command is for admins only.")
 
@@ -175,8 +183,7 @@ async def info(ctx):
                                                         " not their nickname.", color=0x00ff00)
     embed.add_field(name="timeout (admin only)", value="Times out a user and sends them a DM with the reason."
                                                        "\nSyntax: !timeout [user] [duration] [reason]", inline=False)
-    embed.add_field(name="purge (admin only)", value="Searches through the last N messages in a channel to delete by a "
-                                                     "specified user."
+    embed.add_field(name="purge (admin only)", value="Deletes the last N messages by a user in a specified channel."
                                                      "\nSyntax: !purge [user] [channel] [number]", inline=False)
     embed.add_field(name="kick (admin only)", value="Kicks a user and sends them a DM with the reason."
                                                     "\nSyntax: !kick [user] [reason]", inline=False)
@@ -190,7 +197,7 @@ async def info(ctx):
 
 
 @client.event
-async def on_message(message):
+async def on_message(message):  # Bad word censorship
     message_content = message.content.strip().lower()
     mod_channel = client.get_channel(644010198662643712)
     if any(bad_word in message_content for bad_word in bad_words):
@@ -199,6 +206,8 @@ async def on_message(message):
                                ". Their message has been censored.")
         await message.delete()
         print("Deleted 1 message by {} in #{}".format(message.author, message.channel))
+
     await client.process_commands(message)
+
 
 client.run(token)
