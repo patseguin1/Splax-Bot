@@ -14,7 +14,7 @@ import embed_assist
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 
-client = Bot(command_prefix="2!")
+client = Bot(command_prefix="!")
 with open("bad_words.txt") as file:
     bad_words = [bad_word.strip().lower() for bad_word in file.readlines()]
 
