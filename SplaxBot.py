@@ -5,30 +5,88 @@ import nest_asyncio
 from dotenv import load_dotenv
 import os
 import random
+import traceback
+import sys
+from mcstatus import MinecraftServer
+import string_assist
+import embed_assist
 
 load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 
-client = Bot(command_prefix="!")
+client = Bot(command_prefix="2!")
 with open("bad_words.txt") as file:
     bad_words = [bad_word.strip().lower() for bad_word in file.readlines()]
 
 with open("quotes.txt") as quote_file:
     quotes = [quote.strip() for quote in quote_file.readlines()]
 
-mod_channel = client.get_channel(644010198662643712)
 is_admin = False
 admin_roles = []
 
 
+def get_server_count(server):
+    minecraft_server = MinecraftServer.lookup(server)
+    try:
+        server_status = minecraft_server.status()
+        return server_status.players.online
+    except:
+        return -1
+
+
+def get_mod_channel():
+    mod_channel = client.get_channel(644010198662643712)
+    return mod_channel
+
+
+async def update_servers():
+    while True:
+        server_channel = client.get_channel(707985423053357145)
+        messages = []  # List of messages, gotten from ids stored in a text file
+        with open("message_ids.txt") as ids:
+            for line in ids.readlines():
+                id = line.split(",")[0].strip()  # The file has names I don't need here, those are for reference only
+                message = await server_channel.fetch_message(int(id))  # Need to convert id from string to int
+                messages.append(message)
+
+        with open("servers.txt") as servers:
+            for index, line in enumerate(servers.readlines()):
+                server_name = line.split(",")[0].strip()  # File lines are of format name, ip, version
+                server_ip = line.split(",")[1].strip()
+                server_version = line.split(",")[2].strip()
+
+                server = embed_assist.Server(server_name, server_ip, server_version)
+                server_embed = server.get_server_embed()
+                message = messages[index]
+                await message.edit(content=None, embed=server_embed)
+
+        await asyncio.sleep(60)  # Updates once every minute
+        nest_asyncio.apply()
+
+
 async def initialize_admin_check():
-    tesseract = await client.fetch_guild(381758822240485376)
-    tesseract_admin = tesseract.get_role(381807012352229377)
+    global admin_roles
+    try:
+        tesseract = await client.fetch_guild(381758822240485376)
+        tesseract_admin = tesseract.get_role(381807012352229377)
+        admin_roles.append(tesseract_admin)
+    except discord.Forbidden:
+        print("Error: Missing Access")
+
     splaxcord = await client.fetch_guild(491335494064406529)
     splaxcord_admin = splaxcord.get_role(491335846335610891)
     splaxcord_mod = splaxcord.get_role(647942566515441692)
-    global admin_roles
-    admin_roles = [tesseract_admin, splaxcord_admin, splaxcord_mod]
+    admin_roles.append(splaxcord_admin)
+    admin_roles.append(splaxcord_mod)
+
+    try:
+        hypesquad = await client.fetch_guild(374694560984465408)
+        hypesquad_admin = hypesquad.get_role(390289508362354689)
+        hypesquad_mod = hypesquad.get_role(595983010252455946)
+        admin_roles.append(hypesquad_admin)
+        admin_roles.append(hypesquad_mod)
+    except discord.Forbidden:
+        print("Error: Missing Access")
 
 
 @client.event
@@ -38,6 +96,7 @@ async def on_ready():
     print(client.user.id)
     print('-----')
     await initialize_admin_check()
+    # await update_servers()
 
 
 @client.event
@@ -45,6 +104,7 @@ async def on_message(message):  # Bad word censorship
     message_content = message.content.strip().lower()
     for bad_word in bad_words:
         if bad_word in message_content:
+            mod_channel = client.get_channel(644010198662643712)  # #event-log in the tesseract
             await mod_channel.send("{} was caught saying a bad word in {}. Their message has been censored."
                                    .format(message.author.mention, message.channel.mention))
             await message.delete()
@@ -53,23 +113,52 @@ async def on_message(message):  # Bad word censorship
     if message.author == client.user:
         return
     else:
-        for role in message.author.roles:
-            if role in admin_roles:
+        try:
+            author_id = message.author.id
+            author = message.guild.get_member(author_id)
+            for role in author.roles:
+                global admin_roles
                 global is_admin
-                is_admin = True
-                break
+                if role in admin_roles:
+                    is_admin = True
+                    break
+                else:
+                    is_admin = False
+            # print(is_admin)
 
+        except AttributeError:
+            return
     await client.process_commands(message)
+
+
+# @client.event  # Proof of concept for muting someone when they join a channel, not currently used
+# async def on_voice_state_update(member, before, after):
+#     tesseract = await client.fetch_guild(381758822240485376)
+#     spammo = await tesseract.fetch_member(128871926499115008)
+#     if before.channel is not after.channel and after.channel is not None:
+#         if member == spammo:
+#             await spammo.edit(mute=True)
+#             await asyncio.sleep(5)
+#             nest_asyncio.apply()
+#             await spammo.edit(mute=False)
 
 
 @client.event
 async def on_command_error(ctx, error):
     if isinstance(error, discord.ext.commands.CommandNotFound):
-        print("Error: Invalid command detected")
+        return
+    elif isinstance(error, discord.ext.commands.MissingRequiredArgument):
+        await ctx.send("Error: not enough arguments provided")
+    elif isinstance(error, discord.Forbidden):
+        print("Error: missing permissions")
+    else:
+        print('Ignoring exception in command {}:'.format(ctx.command), file=sys.stderr)
+        traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
 
 @client.command(pass_context=True)
-async def test(ctx):
+async def test(ctx):  # The first command I made for the bot, now tests if you are an admin
+    global is_admin
     if is_admin:
         await ctx.send("Admin test successful")
     else:
@@ -77,88 +166,121 @@ async def test(ctx):
 
 
 @client.command(pass_context=True)
+async def sendmessages(ctx, number):
+    server_channel = client.get_channel(707985423053357145)
+    number = int(number)
+    global is_admin
+    if is_admin:
+        for num in range(number):
+            await server_channel.send("Placeholder {}".format(num))
+        await ctx.send("Sent {} placeholder messages".format(number))
+    else:
+        await ctx.send("Error: the sendmessages command is for admins only.")
+
+
+@client.command(pass_context=True)
 async def gazebo(ctx):
-    await ctx.send("Tomlough is best gazebo admin")
+    message = await ctx.send("Tomlough is best gazebo admin")
+    await ctx.send(str(message.id))
+    embed = embed_assist.Server("test", "125.125.125.25", "1.15.2")
+    server_embed = embed.get_server_embed()
+    await ctx.send(embed=server_embed)
+
+
+@client.command(pass_context=True)
+async def tvz(ctx): # Sends a link to #games in The Gazebo
+    await ctx.send("<#665364945193533450>")
+
+
+@client.command(pass_context=True)
+async def splax(ctx):
+    splax = client.get_user(300367873099169803)
+    await ctx.send("{} {} {}".format(splax.mention, splax.mention, splax.mention))
+
+
+@client.command(pass_context=True)
+async def fig(ctx):
+    fig = client.get_user(292987998759550977)
+    await ctx.send("{} {} {}".format(fig.mention, fig.mention, fig.mention))
+
+
+@client.command(pass_context=True)
+async def shovel(ctx):
+    shovel = client.get_user(116019965852778497)
+    await ctx.send("{} {} {}".format(shovel.mention, shovel.mention, shovel.mention))
+
+
+@client.command(pass_context=True)
+async def wifi(ctx):
+    wifi = client.get_user(116010375790592003)
+    await ctx.send("{} {} {}".format(wifi.mention, wifi.mention, wifi.mention))
+
+
+@client.command(pass_context=True)
+async def ohnodude(ctx):
+    ohno = await ctx.guild.fetch_emoji(600459330218622986)
+    await ctx.send(ohno)
+
+
+@client.command(pass_context=True)
+async def ohnooodude(ctx):
+    ohnooo = await ctx.guild.fetch_emoji(682815673742786564)
+    await ctx.send(ohnooo)
+
+
+@client.command(pass_context=True)
+async def activity(ctx):
+    await ctx.send("To see the activity of the DvZ remakes, check <#707985423053357145>")
+
+
+@client.command(pass_context=True)
+async def jimmy(ctx):
+    role_jimmy = discord.utils.get(ctx.guild.roles, name="Jimmy")
+    await ctx.send(role_jimmy.mention)
 
 
 @client.command(pass_context=True)
 async def quote(ctx, number=None):
     if number:
-        quote_index = int(number)-1
+        quote_index = int(number) - 1
         quote = quotes[quote_index]
         await ctx.send("Quote #{}: {}".format(number, quote))
     else:
         quote_index = random.randint(0, len(quotes))
         quote = quotes[quote_index]
-        await ctx.send("Quote #{}: {}".format(quote_index+1, quote))
+        await ctx.send("Quote #{}: {}".format(quote_index + 1, quote))
 
 
 @client.command(pass_context=True)
-async def join_channel(ctx, channel: discord.VoiceChannel, password=""):
-    test_vc = client.get_channel(574393571432726528)
-    if channel == test_vc:
-        if password == "Stream":
-            await ctx.author.edit(voice_channel=channel)
-        else:
-            await ctx.send("Error: incorrect password")
-    else:
-        await ctx.send("Error: channel is not password protected")
-
-
-@client.command(pass_context=True)
-async def timeout(ctx, member: discord.Member, duration="1", reason=""):
+async def timeout(ctx, member: discord.Member, duration=1, reason=""):
     role_timeout = discord.utils.get(ctx.guild.roles, name="Timeout")
     role_jimmy = discord.utils.get(ctx.guild.roles, name="Jimmy")
+    timeout_duration = duration
+    duration *= 3600
 
-    async def remove_timeout(seconds):
+    async def process_timeout(seconds):
         await asyncio.sleep(seconds)
         await member.add_roles(role_jimmy)
         await member.remove_roles(role_timeout)
 
+    global is_admin
     if is_admin:
         channel = await member.create_dm()
         await member.add_roles(role_timeout)
         await member.remove_roles(role_jimmy)
-        if duration[-1] == "D":  # Checking for the days suffix
-            duration = duration[:-1]
-            timeout_duration = int(duration) * 86400
 
-            if int(duration) == 1:  # Send a message to the user and the channel, singular case
-                await ctx.send("{} timed out {} for reason: {}. "
-                               "\nLength of timeout: {} day".format(ctx.author, str(member), reason, duration))
-                message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of timeout: " + duration + " day"
-                await channel.send(message)
-            else:  # Send a message to the user and the channel, plural case
-                await ctx.send("{} timed out {} for reason: {}. "
-                               "\nLength of timeout: {} days".format(ctx.author, str(member), reason, duration))
-                message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of timeout: " + duration + " days"
-                await channel.send(message)
+        timeout = string_assist.Timeout(ctx.guild, ctx.author, member, timeout_duration, reason)
+        mod_string = timeout.get_mod_channel_string()
+        user_string = timeout.get_user_dm_string()
 
-            await remove_timeout(timeout_duration)
-            nest_asyncio.apply()
+        await ctx.send(mod_string)
+        await channel.send(user_string)
 
-        else:  # Defaults to hours
-            timeout_duration = int(duration)*3600
-            if int(duration) == 1:  # Sends a message to the user and the channel, singular case
-                await ctx.send("{} timed out {} for reason: {}. "
-                               "\nLength of timeout: {} hour".format(ctx.author, str(member), reason, duration))
-                message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of timeout: " + duration + " hour"
-                await channel.send(message)
-            else:  # Sends a message to the user and the channel, plural case
-                await ctx.send("{} timed out {} for reason: {}. "
-                               "\nLength of timeout: {} hours".format(ctx.author, str(member), reason, duration))
-                message = "You have been timed out from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of timeout: " + duration + " hours"
-                await channel.send(message)
+        await process_timeout(duration)
+        nest_asyncio.apply()
 
-            await remove_timeout(timeout_duration)
-            nest_asyncio.apply()
-
-        message = "Your timeout from " + str(ctx.guild) + " has been removed"
-        await channel.send(message)
+        await channel.send("Your timeout from {} has been removed.".format(ctx.guild))
+        await ctx.send("The timeout on {} has been removed.".format(member))
     else:
         await ctx.send("Error: The timeout command is for admins only.")
 
@@ -167,6 +289,7 @@ async def timeout(ctx, member: discord.Member, duration="1", reason=""):
 async def purge(ctx, member: discord.Member, channel: discord.TextChannel, number=1):
     deleted = 0
 
+    global is_admin
     if is_admin:
         async for message in channel.history(limit=1000):
             if message.author == member:
@@ -174,13 +297,16 @@ async def purge(ctx, member: discord.Member, channel: discord.TextChannel, numbe
                 deleted += 1
             if deleted >= number:
                 break
-        await ctx.channel.send("Purged {} messages by {} in {}".format(str(number), member, channel.mention))
+        mod_channel = client.get_channel(644010198662643712)
+        await mod_channel.send("Purged {} messages by {} in {}".format(str(number), member, channel.mention))
+        await ctx.message.delete()
     else:
         await ctx.send("Error: The purge command is for admins only.")
 
 
 @client.command(pass_context=True)
 async def kick(ctx, member: discord.Member, reason=""):
+    global is_admin
     if is_admin:
         await ctx.send("{} kicked {} for reason: {}".format(ctx.author, str(member), reason))
         message = "You have been kicked from " + str(ctx.guild) + ". Reason: " + reason
@@ -192,51 +318,28 @@ async def kick(ctx, member: discord.Member, reason=""):
 
 
 @client.command(pass_context=True)
-async def temp_ban(ctx, member: discord.Member, duration="", reason=""):
-    async def remove_ban(seconds):
+async def ban(ctx, member: discord.Member, duration=1, reason=""):
+    async def process_ban(seconds):
         await asyncio.sleep(seconds)
-        await channel.send("You have been unbanned from " + str(ctx.guild) + ".")
         await member.unban()
 
+    global is_admin
     if is_admin:
         channel = await member.create_dm()
-        if duration[-1] == "D":  # Checking for the days suffix
-            duration = duration[:-1]
-            ban_duration = int(duration)*86400
 
-            if int(duration) == 1:  # Send a message to the user and the channel, singular case
-                await ctx.send("{} banned {} for reason: {}. "
-                               "\nLength of ban: {} day".format(ctx.author, str(member), reason, duration))
-                message = "You have been temporarily banned from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of ban: " + duration + " day"
-                await channel.send(message)
-            else:  # Send a message to the user and the channel, plural case
-                await ctx.send("{} banned {} for reason: {}. "
-                               "\nLength of ban: {} days".format(ctx.author, str(member), reason, duration))
-                message = "You have been temporarily banned from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of ban: " + duration + " days"
-                await channel.send(message)
-            await member.ban(reason=reason, delete_message_days=0)
-            await remove_ban(ban_duration)
-            nest_asyncio.apply()
+        ban = string_assist.Ban(ctx.guild, ctx.author, member, duration, reason)
+        mod_string = ban.get_mod_channel_string()
+        user_string = ban.get_user_dm_string()
 
-        else:  # Defaults to hours
-            ban_duration = int(duration)*3600
-            if int(duration) == 1:  # Send a message to the user and the channel, singular case
-                await ctx.send("{} banned {} for reason: {}. "
-                               "\nLength of ban: {} hour".format(ctx.author, str(member), reason, duration))
-                message = "You have been temporarily banned from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of ban: " + duration + " hour"
-                await channel.send(message)
-            else:  # Send a message to the user and the channel, plural case
-                await ctx.send("{} banned {} for reason: {}. "
-                               "\nLength of ban: {} hours".format(ctx.author, str(member), reason, duration))
-                message = "You have been temporarily banned from " + str(ctx.guild) + ". Reason: " + reason \
-                          + "\nLength of ban: " + duration + " hours"
-                await channel.send(message)
-            await member.ban(reason=reason, delete_message_days=0)
-            await remove_ban(ban_duration)
-            nest_asyncio.apply()
+        await ctx.send(mod_string)
+        await channel.send(user_string)
+
+        await member.ban(reason=reason, delete_message_days=0)
+        await process_ban(duration)
+        nest_asyncio.apply()
+
+        await channel.send("Your ban from {} has been removed".format(ctx.guild))
+        await ctx.send("The ban on {} has been removed.".format(member))
 
     else:
         await ctx.send("Error: The temp ban command is for admins only.")
@@ -244,20 +347,26 @@ async def temp_ban(ctx, member: discord.Member, duration="", reason=""):
 
 @client.command(pass_context=True)
 async def create_role(ctx, name="", color="255, 255, 255", mentionable=False, hoist=False):
+    global is_admin
     if is_admin:
         color_tuple = eval(color)
         r = color_tuple[0]
         g = color_tuple[1]
         b = color_tuple[2]
         role_color = discord.Color.from_rgb(r, g, b)
-        await ctx.guild.create_role(name=name, color=role_color, mentionable=mentionable, hoist=hoist)
-        await ctx.send("Successfully created role {}.".format(name))
+        role = await ctx.guild.create_role(name=name, color=role_color, mentionable=mentionable, hoist=hoist)
+        position = role.position
+        await ctx.send("Successfully created role {} with the following properties:"
+                       "\nPosition: {} \nMentionable: {} \nHoisted: {}"
+                       "\nRGB: {}, {}, {}".format(str(role), position, mentionable, hoist,
+                                                  r, g, b))
     else:
-        ctx.send("Error: the create role command is for admins only.")
+        await ctx.send("Error: the create role command is for admins only.")
 
 
 @client.command(pass_context=True)
 async def give_roles(ctx, member: discord.Member, roles=""):
+    global is_admin
     if is_admin:
         roles_list = []
         roles_tuple = tuple(map(str, roles.split(", ")))
@@ -267,7 +376,31 @@ async def give_roles(ctx, member: discord.Member, roles=""):
             await member.add_roles(role)
             await ctx.send("Successfully gave role {} to {}".format(str(role), str(member)))
     else:
-        ctx.send("Error: the give roles command is for admins only.")
+        await ctx.send("Error: the give roles command is for admins only.")
+
+
+@client.command(pass_context=True)
+async def edit_role(ctx, role: discord.Role, position=0, mentionable=False, hoist=False, color=None):
+    global is_admin
+    if is_admin:
+        if color:
+            color_tuple = eval(color)
+            r = color_tuple[0]
+            g = color_tuple[1]
+            b = color_tuple[2]
+            role_color = discord.Color.from_rgb(r, g, b)
+            await role.edit(position=position, mentionable=mentionable, hoist=hoist, color=role_color)
+            await ctx.send("Successfully edited role {} to have the following properties:"
+                           "\nPosition: {} \nMentionable: {} \nHoisted: {}"
+                           "\nRGB: {}, {}, {}".format(str(role), position, mentionable, hoist,
+                                                      r, g, b))
+        else:
+            await role.edit(position=position, mentionable=mentionable, hoist=hoist)
+            await ctx.send("Successfully edited role {} to have the following properties:"
+                           "\nPosition: {} \nMentionable: {} \nHoisted: {}"
+                           .format(str(role), position, mentionable, hoist))
+    else:
+        await ctx.send("Error: the edit role command is for admins only.")
 
 
 @client.command(pass_context=True)
@@ -281,15 +414,16 @@ async def remove_roles(ctx, member: discord.Member, roles=""):
             await member.remove_roles(role)
             await ctx.send("Successfully removed role {} from {}".format(str(role), str(member)))
     else:
-        ctx.send("Error: the give roles command is for admins only.")
+        await ctx.send("Error: the remove roles command is for admins only.")
 
 
 @client.command(pass_context=True)
 async def nick(ctx, member: discord.Member, name=None):
+    global is_admin
     if is_admin:
         await member.edit(nick=name)
         if name:
-            await ctx.send("Successfully changed {}'s nickname to {}".format(str(member), name))
+            await ctx.send("Successfully changed {}'s nickname to {}.".format(str(member), name))
         else:
             await ctx.send("Successfully removed {}'s nickname.".format(str(member)))
     else:
@@ -298,6 +432,7 @@ async def nick(ctx, member: discord.Member, name=None):
 
 @client.command(pass_context=True)
 async def mass_rename(ctx, name=None, is_prefix=False, is_suffix=False):
+    global is_admin
     if is_admin:
         members = await ctx.guild.fetch_members().flatten()
         renamed = 0
@@ -325,21 +460,24 @@ async def mass_rename(ctx, name=None, is_prefix=False, is_suffix=False):
 
 
 @client.command(pass_context=True)
-async def temp_mute(ctx, member: discord.Member, duration=1, reason=""):
+async def mute(ctx, member: discord.Member, duration=1, reason=""):
+    global is_admin
     if is_admin:
         await member.edit(mute=True)
         channel = await member.create_dm()
+        minute_duration = duration
+        duration *= 60
 
-        if duration == 1:
-            await channel.send("You have been temporarily muted from {} for {} second. Reason: {}"
-                         .format(str(ctx.guild), duration, reason))
-            await ctx.send("{} was temporarily muted for {} second. Reason: {}"
-                                   .format(member, duration, reason))
+        if minute_duration == 1:
+            await channel.send("You have been temporarily muted from {} for {} minute. Reason: {}"
+                               .format(str(ctx.guild), minute_duration, reason))
+            await ctx.send("{} was temporarily muted for {} minute. Reason: {}"
+                           .format(member, minute_duration, reason))
         else:
-            await channel.send("You have been temporarily muted from {} for {} seconds. Reason: {}"
-                               .format(str(ctx.guild), duration, reason))
-            await ctx.send("{} was temporarily muted for {} seconds. Reason: {}"
-                           .format(member, duration, reason))
+            await channel.send("You have been temporarily muted from {} for {} minutes. Reason: {}"
+                               .format(str(ctx.guild), minute_duration, reason))
+            await ctx.send("{} was temporarily muted for {} minutes. Reason: {}"
+                           .format(member, minute_duration, reason))
 
         await asyncio.sleep(duration)
         nest_asyncio.apply()
@@ -353,40 +491,7 @@ async def temp_mute(ctx, member: discord.Member, duration=1, reason=""):
 @client.command(pass_context=True)
 async def info(ctx):
     await ctx.send("Splax Bot is the automated minion of the Tesseract Police State, built to boomer standards.")
-    embed = discord.Embed(title="Commands", description="All commands require the user's discord name,"
-                                                        " not their nickname. Arguments appended by B are boolean "
-                                                        "and only accept True or False.", color=0x00ff00)
-    embed.add_field(name="info", value="Lists the commands offered by the bot"
-                                       "\nSyntax: !info", inline=False)
-    embed.add_field(name="quote", value="Displays the specified quote. Chooses a random quote if no quote is specified."
-                                        "\nSyntax: !quote [number]", inline=False)
-    embed.add_field(name="join_channel", value="Joins a password protected channel."
-                                               "\nSyntax: !join_channel [channel] [password]")
-    embed.add_field(name="timeout (admin only)", value="Times out a user and sends them a DM with the reason. "
-                                                       "Duration is in hours by default, days if appended by D."
-                                                       "\nSyntax: !timeout [user] [duration] [reason]", inline=False)
-    embed.add_field(name="purge (admin only)", value="Deletes the last N messages by a user in a specified channel."
-                                                     "\nSyntax: !purge [user] [channel] [number]", inline=False)
-    embed.add_field(name="kick (admin only)", value="Kicks a user and sends them a DM with the reason."
-                                                    "\nSyntax: !kick [user] [reason]", inline=False)
-    embed.add_field(name="temp_ban (admin only)", value="Temporarily bans a user and sends them a DM with the reason. "
-                                                       "Duration is in hours by default, days if appended by D."
-                                                   "\nSyntax: !tempban [user] [duration] [reason]", inline=False)
-    embed.add_field(name="create_role (admin only)", value="Creates a role with the specified properties."
-                                                           "\nSyntax: !create_role [name] [R, G, B] "
-                                                           "[mentionable]B [hoisted]B", inline=False)
-    embed.add_field(name="give_roles (admin only)", value="Gives roles to a user."
-                                                          "\nSyntax: !give_roles [user] [roles]", inline=False)
-    embed.add_field(name="remove_roles (admin only)", value="Removes roles from a user."
-                                                          "\nSyntax: !remove_roles [user] [roles]", inline=False)
-    embed.add_field(name="nick (admin only)", value="Sets a user's nickname. Removes nickname if no name is provided."
-                                                    "\nSyntax: !nick [user] [name]", inline=False)
-    embed.add_field(name="mass_rename (admin only)", value="Mass renames every user on the server, removes nicknames "
-                                                           "if no name is provided. Use with caution."
-                                                           "\nSyntax: !mass_rename [name] [is_prefix]B [is_suffix]B",
-                    inline=False)
-    embed.add_field(name="temp_mute (admin only)", value="Temporarily mutes a user and sends them a DM with the reason."
-                                                         "\nSyntax: !temp_mute [user] [duration] [reason]")
+    embed = embed_assist.get_info_embed()
     await ctx.send(embed=embed)
 
 
