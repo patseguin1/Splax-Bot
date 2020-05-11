@@ -4,7 +4,6 @@ import asyncio
 import nest_asyncio
 from dotenv import load_dotenv
 import os
-import random
 import traceback
 import sys
 from mcstatus import MinecraftServer
@@ -15,11 +14,9 @@ load_dotenv()
 token = os.getenv('DISCORD_TOKEN')
 
 client = Bot(command_prefix="!")
+
 with open("bad_words.txt") as file:
     bad_words = [bad_word.strip().lower() for bad_word in file.readlines()]
-
-with open("quotes.txt") as quote_file:
-    quotes = [quote.strip() for quote in quote_file.readlines()]
 
 is_admin = False
 admin_roles = []
@@ -43,17 +40,15 @@ async def update_servers():
     while True:
         server_channel = client.get_channel(707985423053357145)
         messages = []  # List of messages, gotten from ids stored in a text file
-        with open("message_ids.txt") as ids:
-            for line in ids.readlines():
-                id = line.split(",")[0].strip()  # The file has names I don't need here, those are for reference only
-                message = await server_channel.fetch_message(int(id))  # Need to convert id from string to int
-                messages.append(message)
 
         with open("servers.txt") as servers:
             for index, line in enumerate(servers.readlines()):
                 server_name = line.split(",")[0].strip()  # File lines are of format name, ip, version
                 server_ip = line.split(",")[1].strip()
                 server_version = line.split(",")[2].strip()
+                id = line.split(",")[3].strip()  # The file has names I don't need here, those are for reference only
+                id_message = await server_channel.fetch_message(int(id))  # Need to convert id from string to int
+                messages.append(id_message)
 
                 server = embed_assist.Server(server_name, server_ip, server_version)
                 server_embed = server.get_server_embed()
@@ -96,7 +91,7 @@ async def on_ready():
     print(client.user.id)
     print('-----')
     await initialize_admin_check()
-    # await update_servers()
+    await update_servers()
 
 
 @client.event
@@ -167,65 +162,69 @@ async def test(ctx):  # The first command I made for the bot, now tests if you a
 
 @client.command(pass_context=True)
 async def sendmessages(ctx, number):
-    server_channel = client.get_channel(707985423053357145)
     number = int(number)
     global is_admin
     if is_admin:
         for num in range(number):
-            await server_channel.send("Placeholder {}".format(num))
+            await ctx.send("Placeholder {}".format(num))
         await ctx.send("Sent {} placeholder messages".format(number))
     else:
         await ctx.send("Error: the sendmessages command is for admins only.")
 
 
 @client.command(pass_context=True)
+async def add_remake(ctx, name, ip, version):
+    server_channel = client.get_channel(707985423053357145)
+    server = embed_assist.Server(name, ip, version)
+    server_embed = server.get_server_embed()
+    server_message = await server_channel.send(content=None, embed=server_embed)
+    server_string = "{}, {}, {}, {}".format(name, ip, version, server_message.id)
+
+    with open("servers.txt", "r+") as server_file:  # Puts new remake at top of file
+        content = server_file.read()
+        server_file.seek(0, 0)
+        server_file.write(server_string + '\n' + content)
+
+    await ctx.send("Successfully added remake {}".format(name))
+
+
+@client.command(pass_context=True)
+async def remove_remake(ctx, name):
+    server_channel = client.get_channel(707985423053357145)
+    lines_skipped = False
+    servers_file = "servers.txt"
+    dummy_file = "serversdummy.txt"
+
+    # All this code is to safely copy the file one line at a time, then remove the original
+    with open(servers_file, "r") as read_file, open(dummy_file, "w") as write_file:
+        for line in read_file:
+            # If current line number matches the given line then skip copying
+            if line.split(",")[0].strip() != name:
+                write_file.write(line)
+            else:
+                lines_skipped = True
+                message_id = int(line.split(",")[3].strip())
+                remake_message = await server_channel.fetch_message(message_id)
+                await remake_message.delete()
+
+    if lines_skipped:
+        try:
+            os.remove(servers_file)
+            os.rename(dummy_file, servers_file)
+        except PermissionError:  # If the file is still in use, wait 5 seconds and try again
+            await asyncio.sleep(5)
+            nest_asyncio.apply()
+            os.remove(servers_file)
+            os.rename(dummy_file, servers_file)
+    else:
+        os.remove(dummy_file)
+
+    await ctx.send("Successfully removed remake {}".format(name))
+
+
+@client.command(pass_context=True)
 async def gazebo(ctx):
-    message = await ctx.send("Tomlough is best gazebo admin")
-    await ctx.send(str(message.id))
-    embed = embed_assist.Server("test", "125.125.125.25", "1.15.2")
-    server_embed = embed.get_server_embed()
-    await ctx.send(embed=server_embed)
-
-
-@client.command(pass_context=True)
-async def tvz(ctx): # Sends a link to #games in The Gazebo
-    await ctx.send("<#665364945193533450>")
-
-
-@client.command(pass_context=True)
-async def splax(ctx):
-    splax = client.get_user(300367873099169803)
-    await ctx.send("{} {} {}".format(splax.mention, splax.mention, splax.mention))
-
-
-@client.command(pass_context=True)
-async def fig(ctx):
-    fig = client.get_user(292987998759550977)
-    await ctx.send("{} {} {}".format(fig.mention, fig.mention, fig.mention))
-
-
-@client.command(pass_context=True)
-async def shovel(ctx):
-    shovel = client.get_user(116019965852778497)
-    await ctx.send("{} {} {}".format(shovel.mention, shovel.mention, shovel.mention))
-
-
-@client.command(pass_context=True)
-async def wifi(ctx):
-    wifi = client.get_user(116010375790592003)
-    await ctx.send("{} {} {}".format(wifi.mention, wifi.mention, wifi.mention))
-
-
-@client.command(pass_context=True)
-async def ohnodude(ctx):
-    ohno = await ctx.guild.fetch_emoji(600459330218622986)
-    await ctx.send(ohno)
-
-
-@client.command(pass_context=True)
-async def ohnooodude(ctx):
-    ohnooo = await ctx.guild.fetch_emoji(682815673742786564)
-    await ctx.send(ohnooo)
+    await ctx.send("Tomlough is best gazebo admin")
 
 
 @client.command(pass_context=True)
@@ -237,18 +236,6 @@ async def activity(ctx):
 async def jimmy(ctx):
     role_jimmy = discord.utils.get(ctx.guild.roles, name="Jimmy")
     await ctx.send(role_jimmy.mention)
-
-
-@client.command(pass_context=True)
-async def quote(ctx, number=None):
-    if number:
-        quote_index = int(number) - 1
-        quote = quotes[quote_index]
-        await ctx.send("Quote #{}: {}".format(number, quote))
-    else:
-        quote_index = random.randint(0, len(quotes))
-        quote = quotes[quote_index]
-        await ctx.send("Quote #{}: {}".format(quote_index + 1, quote))
 
 
 @client.command(pass_context=True)
