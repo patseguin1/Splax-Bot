@@ -43,10 +43,10 @@ async def update_servers():
 
         with open("servers.txt") as servers:
             for index, line in enumerate(servers.readlines()):
-                server_name = line.split(",")[0].strip()  # File lines are of format name, ip, version
+                server_name = line.split(",")[0].strip()  # File lines are of format name, ip, version, message id
                 server_ip = line.split(",")[1].strip()
                 server_version = line.split(",")[2].strip()
-                id = line.split(",")[3].strip()  # The file has names I don't need here, those are for reference only
+                id = line.split(",")[3].strip() 
                 id_message = await server_channel.fetch_message(int(id))  # Need to convert id from string to int
                 messages.append(id_message)
 
