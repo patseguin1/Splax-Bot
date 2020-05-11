@@ -39,7 +39,7 @@ def get_mod_channel():
 async def update_servers():
     while True:
         server_channel = client.get_channel(707985423053357145)
-        messages = []  # List of messages, gotten from ids stored in a text file
+        messages = []  # List of messages, gotten from ids stored in servers.txt
 
         with open("servers.txt") as servers:
             for index, line in enumerate(servers.readlines()):
