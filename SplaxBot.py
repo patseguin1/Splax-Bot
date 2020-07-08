@@ -219,7 +219,7 @@ async def on_command_error(ctx, error):
         traceback.print_exception(type(error), error, error.__traceback__, file=sys.stderr)
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def test(ctx):  # The first command I made for the bot, now tests if you are an admin
     await ctx.send("Admin test successful")
@@ -231,7 +231,7 @@ async def test_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def spammo(ctx):
     await ctx.send("Starting up the Spammo auto-role remover")
@@ -244,7 +244,7 @@ async def spammo_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 async def message(ctx, id):
     for guild in client.guilds:
         for channel in guild.text_channels:
@@ -267,7 +267,7 @@ async def message(ctx, id):
                 pass
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def add_remake(ctx, *, args):
     name = ""
@@ -300,7 +300,7 @@ async def add_remake_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def remove_remake(ctx, *, args):
     name = ""
@@ -335,7 +335,7 @@ async def remove_remake_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def refresh_remakes(ctx):  # Sorts the remakes and then refreshes the messages
     server_channel = client.get_channel(707985423053357145)
@@ -395,15 +395,15 @@ async def refresh_remakes_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 async def welcome(ctx):
-    await ctx.send("**For server IPs and info, check <#582980469444968475> and <#707985423053357145>.**"
-                   "\nThere are no DvZ servers that are active 24/7, but you will find the most activity on weekends."
+    await ctx.send("**For server IPs and info, check <#582980469444968475> and <#707985423053357145>.**\n"
+                   "There are no DvZ servers that are active 24/7, but you will find the most activity on weekends."
                    "\nThe most active servers are The Gazebo and Nightfall, join their discord servers "
                    "and sign up for their game alert roles to be notified when games are starting.")
 
 
-@client.command  # Used to test for when discord.py implements role mention for bots
+@client.command(pass_context=True)  # Used to test for when discord.py implements role mention for bots
 @admin_check()
 async def jimmy(ctx):
     role_jimmy = discord.utils.get(ctx.guild.roles, name="Jimmy")
@@ -416,7 +416,7 @@ async def jimmy_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def timeout(ctx, member: discord.Member, duration=1, *, reason):
     async def process_timeout(seconds):
@@ -452,7 +452,7 @@ async def timeout_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def purge(ctx, member: discord.Member, channel: discord.TextChannel, number=1):
     deleted = 0
@@ -472,7 +472,7 @@ async def purge_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def kick(ctx, member: discord.Member, *, reason):
     await ctx.send("{} kicked {} for reason: {}".format(ctx.author, str(member), reason))
@@ -488,7 +488,7 @@ async def kick_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def ban(ctx, member: discord.Member, duration=1, *, reason):
     async def process_ban(seconds):
@@ -518,7 +518,7 @@ async def ban_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def nick(ctx, member: discord.Member, *, name):
     await member.edit(nick=name)
@@ -534,7 +534,7 @@ async def nick_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 @admin_check()
 async def mute(ctx, member: discord.Member, duration=1, *, reason):
     await member.edit(mute=True)
@@ -565,7 +565,7 @@ async def mute_error(ctx, error):
         await ctx.send("Error: You do not have permission to use this command")
 
 
-@client.command
+@client.command(pass_context=True)
 async def info(ctx):
     await ctx.send("Splax Bot is the bot of Splax, checking for activity in DvZ remakes"
                    " and offering many moderation commmands")
